@@ -1,3 +1,5 @@
 /server/node_modules
 /server/build
 /server/dist
+
+.env
