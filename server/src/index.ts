@@ -1,6 +1,12 @@
 require("dotenv").config();
 import express from "express";
+import axios from "axios";
 import DownloadRouter from "./routes/download";
+const TelegramBot = require("node-telegram-bot-api");
+import { isInstagramPostUrl, getMenu, uploadMedia } from "./utils/utils";
+
+const token = process.env.TELEGRAM_BOT_TOKEN;
+const bot = new TelegramBot(token, { polling: true });
 
 const app = express();
 
@@ -8,6 +14,117 @@ app.use("/download", DownloadRouter);
 
 app.get("/", (req, res) => {
   res.send("Hello World");
+});
+
+const users: any = {};
+
+bot.on("message", async (msg: any) => {
+  const msgText = msg.text;
+  const chatId = msg.chat.id;
+
+  /** /start -> Send welcome message */
+  if (msgText === "/start") {
+    bot.sendMessage(
+      chatId,
+      "Welcome to InstaSaver Bot! Please share the Instagram post link to upload the media."
+    );
+    return;
+  }
+
+  /** if the message is a valid Instagram post link */
+  if (isInstagramPostUrl(msgText)) {
+    bot.sendMessage(chatId, "Processing your request. Please wait...");
+
+    const { data } = await axios.get(
+      `http://localhost:3000/download?url=${msgText}`
+    );
+
+    if (data.error) return bot.sendMessage(chatId, data.error);
+
+    users[chatId] = { step: 2, data };
+    // console.log("res", data);
+
+    const menu = getMenu(data);
+    bot.sendMessage(chatId, menu);
+
+    return;
+  } else {
+    if (!users[chatId])
+      bot.sendMessage(chatId, "Please enter a valid Instagram post link");
+
+    const data = users[chatId]?.data;
+    console.log({ data });
+    switch (users[chatId]?.step) {
+      case 2:
+        if (msgText === "1") {
+          bot.sendMessage(chatId, "Publishing the post. Please wait...");
+          const uploadResponse: any = await uploadMedia(data);
+
+          if (uploadResponse.error) {
+            bot.sendMessage(chatId, "Something went wrong!");
+            // console.log({ error: uploadResponse.error });
+            delete users[chatId];
+          } else {
+            bot.sendMessage(chatId, "Post published successfully!");
+            bot.sendMessage(
+              chatId,
+              "To make another post, send another Instagram post link."
+            );
+            delete users[chatId];
+          }
+        } else if (msgText === "2") {
+          bot.sendMessage(chatId, `Old caption: ${data.title}`);
+          bot.sendMessage(chatId, "Please enter the new caption: ");
+          users[chatId].step = 3;
+          users[chatId].prevSelection = "caption";
+        } else if (msgText === "3") {
+          bot.sendMessage(chatId, `Old location: ${data.location}`);
+          bot.sendMessage(chatId, "Please enter the new location: ");
+          users[chatId].step = 3;
+          users[chatId].prevSelection = "location";
+        } else if (msgText === "4") {
+          if (data.type === "sidecar") {
+            const media = data.edges.map(
+              (media: any, index: any) => `${index + 1}: ${media.url}\n`
+            );
+
+            const responseText = `Download Links: \n${media.join("\n")}`;
+            bot.sendMessage(chatId, responseText);
+          } else {
+            bot.sendMessage(chatId, `Download Link: \n${data.url}`);
+          }
+
+          bot.sendMessage(
+            chatId,
+            "Please send an Instagram post link to start again."
+          );
+          delete users[chatId];
+        } else if (msgText === "5") {
+          bot.sendMessage(
+            chatId,
+            "Upload cancelled. Please send an Instagram post link to start again."
+          );
+          delete users[chatId];
+        } else {
+          bot.sendMessage(chatId, "Invalid option. Please try again.");
+        }
+        break;
+      case 3:
+        if (users[chatId].prevSelection === "caption") {
+          data.title = msgText;
+        } else {
+          data.location = msgText;
+        }
+
+        const menu = getMenu(data);
+        bot.sendMessage(chatId, menu);
+        users[chatId].step = 2;
+        delete users[chatId].prevSelection;
+        break;
+    }
+  }
+
+  // console.log(msg);
 });
 
 const PORT = process.env.PORT || 3000;

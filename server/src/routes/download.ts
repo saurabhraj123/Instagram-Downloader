@@ -1,16 +1,23 @@
 import { Router } from "express";
 import _ from "lodash";
-import { getDownloadUrl } from "../utils/utils";
+import { getDownloadUrl, extractIdFromUrl, uploadMedia } from "../utils/utils";
 
 const router = Router();
 
 router.get("/", async (req, res) => {
   const { url: postUrl } = req.query;
-  const endPointUrl = `${postUrl}?__a=1&__d=dis`;
+  const postId = extractIdFromUrl(postUrl as string);
 
-  const downloadUrl = await getDownloadUrl(endPointUrl);
+  const endPointUrl = `https://instagram.com/p/${postId}?__a=1&__d=dis`;
 
-  return res.send(downloadUrl);
+  const downloadData = await getDownloadUrl(endPointUrl);
+  // console.log({ downloadData });
+  // const uploadResponse: any = await uploadMedia(downloadData[0]);
+
+  // if (uploadResponse.error)
+  //   return res.send({ isSuccess: false, error: uploadResponse.error });
+
+  return res.send(downloadData);
 });
 
 export default router;
