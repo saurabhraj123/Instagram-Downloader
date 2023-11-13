@@ -71,7 +71,14 @@ const mediaTypeToFunctionMap: any = {
 
 export const getDownloadUrl = async (url: string) => {
   try {
-    const { data } = await axios.get(url);
+    const headers = {
+      "User-Agent":
+        " Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    };
+
+    const { data } = await axios.get(url, { headers });
+
+    if (data.error) return { error: "Internal server error" };
 
     const graphType = _.get(data, "graphql.shortcode_media.__typename");
 
@@ -79,7 +86,6 @@ export const getDownloadUrl = async (url: string) => {
 
     return mediaTypeToFunctionMap[graphType](data);
   } catch (e) {
-    console.log("e", e);
     return { error: e };
   }
 };
@@ -98,17 +104,17 @@ export const extractIdFromUrl = (url: string) => {
   return match ? match[2] : null;
 };
 
-const getIgContainerId = async (
-  url: string,
-  mediaType: string,
-  caption: string,
-  location: string
-) => {
+const getIgContainerId = async ({
+  url,
+  mediaType,
+  caption,
+  locationId,
+  is_carousel_item = false,
+}: any) => {
   const id = process.env.IG_PAGE_ID;
   const urlParamName = mediaType === "image" ? "image_url" : "video_url";
   const access_token = process.env.FACEBOOK_ACCESS_TOKEN;
 
-  console.log({ url, mediaType, id, urlParamName, access_token });
   try {
     const { data } = await axios.post(
       `https://graph.facebook.com/v18.0/${id}/media`,
@@ -116,7 +122,9 @@ const getIgContainerId = async (
         [urlParamName]: url,
         access_token,
         caption,
-        location,
+        location_id: locationId,
+        is_carousel_item,
+        media_type: mediaType.toUpperCase(),
       }
     );
 
@@ -145,19 +153,61 @@ const postByCreationId = async (creationId: string) => {
   }
 };
 
+const getCarouselContainerId = async ({ containerIds, caption }: any) => {
+  const id = process.env.IG_PAGE_ID;
+  const access_token = process.env.FACEBOOK_ACCESS_TOKEN;
+
+  try {
+    const { data } = await axios.post(
+      `https://graph.facebook.com/v18.0/${id}/media`,
+      {
+        media_type: "CAROUSEL",
+        children: containerIds.join(","),
+        caption,
+        access_token,
+      }
+    );
+
+    return data.id;
+  } catch (e) {
+    return null;
+  }
+};
+
 export const uploadMedia = async (data: any) => {
-  // console.log({ data });
   const { type } = data;
-  // console.log({ type, url });
 
   if (type === "sidecar") {
-  } else {
-    const containerId = await getIgContainerId(
-      data.url,
-      type,
-      data.title,
-      data.location
+    const containerIds = await Promise.all(
+      _.map(data.edges, async (edge: any) => {
+        const containerId = await getIgContainerId({
+          url: edge.url,
+          mediaType: edge.type,
+          locationId: data?.location?.id,
+          is_carousel_item: true,
+        });
+
+        return containerId;
+      })
     );
+
+    const filteredContainerIds = _.compact(containerIds);
+    const creationId = await getCarouselContainerId({
+      containerIds: filteredContainerIds,
+      caption: data.title,
+    });
+
+    const postId = await postByCreationId(creationId);
+    if (!postId) return { error: "Unable to post by creation ID" };
+
+    return { id: postId };
+  } else {
+    const containerId = await getIgContainerId({
+      url: data.url,
+      mediaType: type,
+      caption: data.title,
+      locationId: data?.location?.id,
+    });
     if (!containerId) return { error: "Unable to get container ID" };
 
     const postId = await postByCreationId(containerId);

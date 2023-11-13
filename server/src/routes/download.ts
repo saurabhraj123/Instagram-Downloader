@@ -11,11 +11,6 @@ router.get("/", async (req, res) => {
   const endPointUrl = `https://instagram.com/p/${postId}?__a=1&__d=dis`;
 
   const downloadData = await getDownloadUrl(endPointUrl);
-  // console.log({ downloadData });
-  // const uploadResponse: any = await uploadMedia(downloadData[0]);
-
-  // if (uploadResponse.error)
-  //   return res.send({ isSuccess: false, error: uploadResponse.error });
 
   return res.send(downloadData);
 });

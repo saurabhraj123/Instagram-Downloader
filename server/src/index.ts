@@ -42,7 +42,6 @@ bot.on("message", async (msg: any) => {
     if (data.error) return bot.sendMessage(chatId, data.error);
 
     users[chatId] = { step: 2, data };
-    // console.log("res", data);
 
     const menu = getMenu(data);
     bot.sendMessage(chatId, menu);
@@ -53,7 +52,7 @@ bot.on("message", async (msg: any) => {
       bot.sendMessage(chatId, "Please enter a valid Instagram post link");
 
     const data = users[chatId]?.data;
-    console.log({ data });
+
     switch (users[chatId]?.step) {
       case 2:
         if (msgText === "1") {
@@ -62,7 +61,7 @@ bot.on("message", async (msg: any) => {
 
           if (uploadResponse.error) {
             bot.sendMessage(chatId, "Something went wrong!");
-            // console.log({ error: uploadResponse.error });
+
             delete users[chatId];
           } else {
             bot.sendMessage(chatId, "Post published successfully!");
@@ -73,15 +72,18 @@ bot.on("message", async (msg: any) => {
             delete users[chatId];
           }
         } else if (msgText === "2") {
-          bot.sendMessage(chatId, `Old caption: ${data.title}`);
-          bot.sendMessage(chatId, "Please enter the new caption: ");
+          bot.sendMessage(
+            chatId,
+            `Old caption: ${data.title}\n\nEnter new caption:`
+          );
           users[chatId].step = 3;
           users[chatId].prevSelection = "caption";
         } else if (msgText === "3") {
-          bot.sendMessage(chatId, `Old location: ${data.location}`);
-          bot.sendMessage(chatId, "Please enter the new location: ");
-          users[chatId].step = 3;
-          users[chatId].prevSelection = "location";
+          const menu = getMenu(data);
+          bot.sendMessage(
+            chatId,
+            `Location: ${data.location}\nYou can change the location through instagram only.\n\n---- Restart -----${menu}`
+          );
         } else if (msgText === "4") {
           if (data.type === "sidecar") {
             const media = data.edges.map(
@@ -123,8 +125,6 @@ bot.on("message", async (msg: any) => {
         break;
     }
   }
-
-  // console.log(msg);
 });
 
 const PORT = process.env.PORT || 3000;
