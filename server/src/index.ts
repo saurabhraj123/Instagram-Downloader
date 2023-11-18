@@ -59,16 +59,17 @@ bot.on("message", async (msg: any) => {
           bot.sendMessage(chatId, "Publishing the post. Please wait...");
           const uploadResponse: any = await uploadMedia(data);
 
-          if (uploadResponse.error) {
-            bot.sendMessage(chatId, "Something went wrong!");
+          // console.log({ )
+          if (!uploadResponse || uploadResponse.error) {
+            bot.sendMessage(chatId, `Error: Internal Server Error`);
 
             delete users[chatId];
           } else {
-            bot.sendMessage(chatId, "Post published successfully!");
             bot.sendMessage(
               chatId,
-              "To make another post, send another Instagram post link."
+              `Post published successfully!\nPost: ${uploadResponse?.url}\n\nTo make another post, send another Instagram post link.\n`
             );
+
             delete users[chatId];
           }
         } else if (msgText === "2") {

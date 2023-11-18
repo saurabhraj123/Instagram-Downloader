@@ -109,27 +109,34 @@ const getIgContainerId = async ({
   mediaType,
   caption,
   locationId,
-  is_carousel_item = false,
+  is_carousel_item,
 }: any) => {
   const id = process.env.IG_PAGE_ID;
   const urlParamName = mediaType === "image" ? "image_url" : "video_url";
+  const media_type = urlParamName === "video_url" ? "REELS" : undefined;
+
   const access_token = process.env.FACEBOOK_ACCESS_TOKEN;
 
+  const payload = {
+    [urlParamName]: url,
+    access_token,
+    caption,
+    location_id: locationId,
+    is_carousel_item,
+    media_type,
+  };
+
+  const filteredPayload = _.pickBy(payload, (value) => value !== undefined);
+  console.log({ payload2: filteredPayload });
   try {
     const { data } = await axios.post(
       `https://graph.facebook.com/v18.0/${id}/media`,
-      {
-        [urlParamName]: url,
-        access_token,
-        caption,
-        location_id: locationId,
-        is_carousel_item,
-        media_type: mediaType.toUpperCase(),
-      }
+      filteredPayload
     );
 
     return data.id;
   } catch (e) {
+    console.log({ e });
     return null;
   }
 };
@@ -137,6 +144,8 @@ const getIgContainerId = async ({
 const postByCreationId = async (creationId: string) => {
   const id = process.env.IG_PAGE_ID;
   const access_token = process.env.FACEBOOK_ACCESS_TOKEN;
+
+  console.log({ creationId, access_token });
 
   try {
     const { data } = await axios.post(
@@ -147,8 +156,11 @@ const postByCreationId = async (creationId: string) => {
       }
     );
 
+    console.log({ data });
+
     return data.id;
   } catch (e) {
+    console.log(JSON.stringify(e));
     return null;
   }
 };
@@ -170,6 +182,27 @@ const getCarouselContainerId = async ({ containerIds, caption }: any) => {
 
     return data.id;
   } catch (e) {
+    return null;
+  }
+};
+
+const getPostUrl = async (postId: string) => {
+  const access_token = process.env.FACEBOOK_ACCESS_TOKEN;
+
+  try {
+    const { data } = await axios.get(
+      `https://graph.facebook.com/v18.0/${postId}`,
+      {
+        params: {
+          fields: "permalink",
+          access_token,
+        },
+      }
+    );
+    console.log({ data });
+    return data.permalink;
+  } catch (e) {
+    console.log({ e });
     return null;
   }
 };
@@ -200,20 +233,30 @@ export const uploadMedia = async (data: any) => {
     const postId = await postByCreationId(creationId);
     if (!postId) return { error: "Unable to post by creation ID" };
 
-    return { id: postId };
+    const postUrl = await getPostUrl(postId);
+
+    return { id: postId, url: postUrl };
   } else {
-    const containerId = await getIgContainerId({
+    const payload = {
       url: data.url,
-      mediaType: type,
       caption: data.title,
+      mediaType: data.type,
       locationId: data?.location?.id,
-    });
+    };
+
+    console.log({ payload });
+
+    const containerId = await getIgContainerId(payload);
+
+    console.log({ containerId });
     if (!containerId) return { error: "Unable to get container ID" };
 
     const postId = await postByCreationId(containerId);
-    if (!postId) return { error: "Unable to post by creation ID" };
+    if (!postId) return { error: "Unable to get creation ID" };
 
-    return { id: postId };
+    const postUrl = await getPostUrl(postId);
+
+    return { id: postId, url: postUrl };
   }
 };
 
