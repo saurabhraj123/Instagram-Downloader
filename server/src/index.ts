@@ -109,7 +109,10 @@ bot.on("message", async (msg: any) => {
           );
           delete users[chatId];
         } else {
-          bot.sendMessage(chatId, "Invalid option. Please try again.");
+          bot.sendMessage(
+            chatId,
+            "Invalid option. Please select a valid option."
+          );
         }
         break;
       case 3:
